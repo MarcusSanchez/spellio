@@ -21,14 +21,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	sentence := []string{"speling", "erors", "arre", "comon", "in", "impropppr", "sentenses"}
+	sentence := []string{"cant", "dont", "wont", "its", "youre", "Johns", "book's", "thats", "well", "Im"}
 	for _, word := range sentence {
 		if wt.IsWord(word) {
 			fmt.Printf("%s ", word)
 		} else {
-			correction, ok := wt.Autocorrect(word)
-			if ok {
-				fmt.Printf("%s ", correction.Word)
+			suggestions := wt.AutocorrectMultiple(word, 3)
+			if len(suggestions) > 0 {
+				if len(suggestions) == 1 {
+					fmt.Printf("%s ", suggestions[0].Word)
+				} else {
+					fmt.Printf("%s[", suggestions[0].Word)
+					for i := 1; i < len(suggestions); i++ {
+						if i > 1 {
+							fmt.Printf(",")
+						}
+						fmt.Printf("%s(%.2f)", suggestions[i].Word, suggestions[i].Confidence)
+					}
+					fmt.Printf("] ")
+				}
 			} else {
 				fmt.Printf("[%s] ", word)
 			}
