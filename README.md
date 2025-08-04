@@ -246,9 +246,9 @@ spellio/
     └── english_words_freqs.txt # Word frequency data
 ```
 
-## 🤝 Contributing
+## 🤝 Development
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+Feedback is welcomed! Please feel free to submit a pull request or open an issue.
 
 ### Development Setup
 
@@ -276,7 +276,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Implements the Wagner-Fischer algorithm for efficient edit distance calculation
 
 ---
-
-**Made with ❤️ by the spellio team**
 
 *Need help? Found a bug? Please [open an issue](https://github.com/sugar/spellio/issues)!*
