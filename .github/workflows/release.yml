@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          # Windows on arm64 is not commonly used
+          - goos: windows
+            goarch: arm64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        # Set binary extension for Windows
+        EXT=""
+        if [ "$GOOS" = "windows" ]; then
+          EXT=".exe"
+        fi
+        
+        # Build the binary
+        go build -ldflags="-s -w" -o "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
+
+    - name: Create archive
+      run: |
+        # Set extension and archive format
+        EXT=""
+        ARCHIVE_EXT="tar.gz"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          EXT=".exe"
+          ARCHIVE_EXT="zip"
+        fi
+        
+        # Create directory structure
+        mkdir -p "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        cp "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}/spellio${EXT}"
+        cp README.md "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}/"
+        cp LICENSE "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}/"
+        cp -r resources "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}/"
+        
+        # Create archive
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          zip -r "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        else
+          tar -czf "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: spellio-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+          spellio-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+        if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          spellio-*/spellio-*.tar.gz
+          spellio-*/spellio-*.zip
+        name: Spellio ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## Spellio ${{ steps.version.outputs.VERSION }}
+          
+          A fast, intelligent spell checker and text correction CLI tool.
+          
+          ### Installation
+          
+          Download the appropriate binary for your platform:
+          
+          - **Linux AMD64**: `spellio-${{ steps.version.outputs.VERSION }}-linux-amd64.tar.gz`
+          - **Linux ARM64**: `spellio-${{ steps.version.outputs.VERSION }}-linux-arm64.tar.gz`
+          - **macOS AMD64**: `spellio-${{ steps.version.outputs.VERSION }}-darwin-amd64.tar.gz`
+          - **macOS ARM64**: `spellio-${{ steps.version.outputs.VERSION }}-darwin-arm64.tar.gz`
+          - **Windows AMD64**: `spellio-${{ steps.version.outputs.VERSION }}-windows-amd64.zip`
+          
+          Extract the archive and place the `spellio` binary in your PATH.
+          
+          ### Usage
+          
+          ```bash
+          # Check a single word
+          spellio check hello
+          
+          # Get corrections for misspelled words
+          spellio correct recieve
+          
+          # Check and correct sentences
+          spellio sentence "I recieve your mesage"
+          
+          # Interactive mode
+          spellio interactive
+          ```
+          
+          See the [README](https://github.com/sugar/spellio/blob/main/README.md) for complete documentation.
+        draft: false
+        prerelease: false
