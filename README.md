@@ -5,6 +5,7 @@ A fast, intelligent spell checker and text correction CLI tool written in Go. Sp
 ## ✨ Features
 
 - **Smart Spell Checking** - Uses frequency-weighted suggestions for more natural corrections
+- **Pattern-Based Corrections** - High-confidence fixes for common misspellings (i before e, double letters, etc.)
 - **Keyboard-Aware Corrections** - Understands common typing mistakes based on keyboard layout
 - **Contraction Handling** - Automatically corrects contractions like `cant` → `can't`
 - **Possessive Support** - Handles possessive forms like `word's`
@@ -84,11 +85,19 @@ Get correction suggestions for misspelled words:
 ```bash
 $ spellio correct recieve
 Suggestions:
+- receive
 - relieve
 - believe
 - recipe
 - retrieve
-- relieved
+
+$ spellio correct definately
+Suggestions:
+- definitely
+- delicately
+- deviately
+- derivately
+- definably
 ```
 
 ### Autocompletion
@@ -112,7 +121,7 @@ Check and correct entire sentences:
 ```bash
 $ spellio sentence "I recieve your mesage and will respnd soon"
 Found 3 corrections in your sentence:
-I (relieve) your (message) and will (respond) soon
+I (receive) your (message) and will (respond) soon
 
 $ spellio sentence "This sentence is correct"
 Your sentence is correct!
@@ -187,14 +196,18 @@ The final score formula: `score = distance - log10(frequency) * 0.6`
 $ spellio correct teh
 Suggestions:
 - the
+- to
 - tech
-- tea
+- tel
+- be
 
 $ spellio correct seperate
 Suggestions:
 - separate
-- desperate
 - operate
+- generate
+- separated
+- desperate
 ```
 
 ### Contractions

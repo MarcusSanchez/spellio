@@ -18,16 +18,18 @@ type LetterNode struct {
 }
 
 type WordTrie struct {
-	Root         *LetterNode
-	WordFreqs    *wordfreqs.WordFrequencies
-	contractions map[string]string
+	Root               *LetterNode
+	WordFreqs          *wordfreqs.WordFrequencies
+	contractions       map[string]string
+	commonMisspellings map[string]string
 }
 
 func New(f *wordfreqs.WordFrequencies) (*WordTrie, error) {
 	wt := &WordTrie{
-		Root:         &LetterNode{Children: make(map[rune]*LetterNode)},
-		WordFreqs:    f,
-		contractions: initContractions(),
+		Root:               &LetterNode{Children: make(map[rune]*LetterNode)},
+		WordFreqs:          f,
+		contractions:       initContractions(),
+		commonMisspellings: initCommonMisspellings(),
 	}
 	if err := wt.loadWords("resources/words.txt"); err != nil {
 		return nil, fmt.Errorf("failed to load words: %w", err)
@@ -99,6 +101,81 @@ func initContractions() map[string]string {
 		"whos":     "who's",
 		"heres":    "here's",
 		"theres":   "there's",
+	}
+}
+
+func initCommonMisspellings() map[string]string {
+	return map[string]string{
+		// "i before e except after c" rule corrections
+		"recieve":   "receive",
+		"decieve":   "deceive",
+		"concieve":  "conceive",
+		"percieve":  "perceive",
+		"beleive":   "believe",
+		"acheive":   "achieve",
+		"releive":   "relieve",
+		"retreive":  "retrieve",
+		"breif":     "brief",
+		"cheif":     "chief",
+		"feild":     "field",
+		"yeild":     "yield",
+		"sheild":    "shield",
+		"weild":     "wield",
+		"peice":     "piece",
+		"neice":     "niece",
+		"freind":    "friend",
+		"wierd":     "weird",
+		"seize":     "seize", // exception: ei after s
+		
+		// Double letter corrections
+		"acommodate": "accommodate",
+		"acomodate":  "accommodate",
+		"adress":     "address",
+		"begining":   "beginning",
+		"comittee":   "committee",
+		"comited":    "committed",
+		"embarass":   "embarrass",
+		"embarasing": "embarrassing",
+		"goverment":  "government",
+		"harrass":    "harass",
+		"occured":    "occurred",
+		"occurence":  "occurrence",
+		"recomend":   "recommend",
+		"seperate":   "separate",
+		"sucessful":  "successful",
+		"sucess":     "success",
+		"tommorow":   "tomorrow",
+		"untill":     "until",
+		
+		// Common letter swaps
+		"definately": "definitely",
+		"definitly":  "definitely",
+		"diffrent":   "different",
+		"independant": "independent",
+		"neccessary": "necessary",
+		"occassion":  "occasion",
+		"priviledge": "privilege",
+		"rythm":      "rhythm",
+		"suprise":    "surprise",
+		"truely":     "truly",
+		"usefull":    "useful",
+		"greatful":   "grateful",
+		"foward":     "forward",
+		"tounge":     "tongue",
+		"alot":       "a lot",
+		"alright":    "all right",
+		
+		// Silent letter corrections
+		"desparate":  "desperate",
+		"maintainance": "maintenance",
+		"arguement":  "argument",
+		"judgement":  "judgment",
+		"acknowlege": "acknowledge",
+		"knowlege":   "knowledge",
+		"columb":     "column",
+		"autum":      "autumn",
+		"foriegn":    "foreign",
+		"souveneir":  "souvenir",
 	}
 }
 
@@ -208,6 +285,13 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		}}
 	}
 
+	// Check for pattern-based correction but don't return immediately - 
+	// let it be prioritized in the full candidate search
+	var patternCorrection string
+	if correction, exists := wt.commonMisspellings[word]; exists && wt.IsWord(correction) {
+		patternCorrection = correction
+	}
+
 	if wt.isPossessive(word) {
 		baseWord := strings.TrimSuffix(word, "'s")
 		if wt.IsWord(baseWord) {
@@ -229,6 +313,12 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 			continue
 		}
 		confidence := wt.calculateConfidence(c.Distance, c.Frequency, maxDist)
+		
+		// Boost confidence for pattern-based corrections
+		if patternCorrection != "" && c.Word == patternCorrection {
+			confidence = 0.98
+		}
+		
 		corrections = append(corrections, Correction{
 			Word:       c.Word,
 			Distance:   c.Distance,
@@ -238,6 +328,14 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 	}
 
 	sort.Slice(corrections, func(i, j int) bool {
+		// Primary sort: High-confidence pattern corrections first
+		if corrections[i].Confidence >= 0.98 && corrections[j].Confidence < 0.98 {
+			return true
+		}
+		if corrections[j].Confidence >= 0.98 && corrections[i].Confidence < 0.98 {
+			return false
+		}
+		
 		// Calculate composite scores that balance distance and frequency
 		// Score = distance - log10(frequency) * scaling_factor
 		// Lower scores rank higher
