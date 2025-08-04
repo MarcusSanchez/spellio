@@ -12,171 +12,163 @@ import (
 	"unicode"
 )
 
+var contractions = map[string]string{
+	"cant":     "can't",
+	"wont":     "won't",
+	"dont":     "don't",
+	"isnt":     "isn't",
+	"arent":    "aren't",
+	"wasnt":    "wasn't",
+	"werent":   "weren't",
+	"hasnt":    "hasn't",
+	"havent":   "haven't",
+	"hadnt":    "hadn't",
+	"wouldnt":  "wouldn't",
+	"couldnt":  "couldn't",
+	"shouldnt": "shouldn't",
+	"mustnt":   "mustn't",
+	"neednt":   "needn't",
+	"oughtnt":  "oughtn't",
+	"shant":    "shan't",
+	"darent":   "daren't",
+	"youre":    "you're",
+	"theyre":   "they're",
+	"were":     "we're",
+	"youve":    "you've",
+	"theyve":   "they've",
+	"weve":     "we've",
+	"ive":      "I've",
+	"youll":    "you'll",
+	"theyll":   "they'll",
+	"well":     "we'll",
+	"hell":     "he'll",
+	"shell":    "she'll",
+	"itll":     "it'll",
+	"thatll":   "that'll",
+	"wholl":    "who'll",
+	"whatll":   "what'll",
+	"wherll":   "where'll",
+	"whenll":   "when'll",
+	"whyll":    "why'll",
+	"howll":    "how'll",
+	"youd":     "you'd",
+	"theyd":    "they'd",
+	"wed":      "we'd",
+	"hed":      "he'd",
+	"shed":     "she'd",
+	"itd":      "it'd",
+	"thatd":    "that'd",
+	"whod":     "who'd",
+	"whatd":    "what'd",
+	"whered":   "where'd",
+	"whend":    "when'd",
+	"whyd":     "why'd",
+	"howd":     "how'd",
+	"im":       "I'm",
+	"lets":     "let's",
+	"thats":    "that's",
+	"whats":    "what's",
+	"wheres":   "where's",
+	"whens":    "when's",
+	"whys":     "why's",
+	"hows":     "how's",
+	"whos":     "who's",
+	"heres":    "here's",
+	"theres":   "there's",
+}
+
+var commonMisspellings = map[string]string{
+	// "i before e except after c" rule corrections
+	"recieve":  "receive",
+	"decieve":  "deceive",
+	"concieve": "conceive",
+	"percieve": "perceive",
+	"beleive":  "believe",
+	"acheive":  "achieve",
+	"releive":  "relieve",
+	"retreive": "retrieve",
+	"breif":    "brief",
+	"cheif":    "chief",
+	"feild":    "field",
+	"yeild":    "yield",
+	"sheild":   "shield",
+	"weild":    "wield",
+	"peice":    "piece",
+	"neice":    "niece",
+	"freind":   "friend",
+	"wierd":    "weird",
+	"seize":    "seize", // exception: ei after s
+
+	// Double letter corrections
+	"acommodate": "accommodate",
+	"acomodate":  "accommodate",
+	"adress":     "address",
+	"begining":   "beginning",
+	"comittee":   "committee",
+	"comited":    "committed",
+	"embarass":   "embarrass",
+	"embarasing": "embarrassing",
+	"goverment":  "government",
+	"harrass":    "harass",
+	"occured":    "occurred",
+	"occurence":  "occurrence",
+	"recomend":   "recommend",
+	"seperate":   "separate",
+	"sucessful":  "successful",
+	"sucess":     "success",
+	"tommorow":   "tomorrow",
+	"untill":     "until",
+
+	// Common letter swaps
+	"definately":  "definitely",
+	"definitly":   "definitely",
+	"diffrent":    "different",
+	"independant": "independent",
+	"neccessary":  "necessary",
+	"occassion":   "occasion",
+	"priviledge":  "privilege",
+	"rythm":       "rhythm",
+	"suprise":     "surprise",
+	"truely":      "truly",
+	"usefull":     "useful",
+	"greatful":    "grateful",
+	"foward":      "forward",
+	"tounge":      "tongue",
+	"alot":        "a lot",
+	"alright":     "all right",
+
+	// Silent letter corrections
+	"desparate":    "desperate",
+	"maintainance": "maintenance",
+	"arguement":    "argument",
+	"judgement":    "judgment",
+	"acknowlege":   "acknowledge",
+	"knowlege":     "knowledge",
+	"columb":       "column",
+	"autum":        "autumn",
+	"foriegn":      "foreign",
+	"souveneir":    "souvenir",
+}
+
 type LetterNode struct {
 	Children map[rune]*LetterNode
 	IsWord   bool
 }
 
 type WordTrie struct {
-	Root               *LetterNode
-	WordFreqs          *wordfreqs.WordFrequencies
-	contractions       map[string]string
-	commonMisspellings map[string]string
+	Root      *LetterNode
+	WordFreqs *wordfreqs.WordFrequencies
 }
 
 func New(f *wordfreqs.WordFrequencies) (*WordTrie, error) {
 	wt := &WordTrie{
-		Root:               &LetterNode{Children: make(map[rune]*LetterNode)},
-		WordFreqs:          f,
-		contractions:       initContractions(),
-		commonMisspellings: initCommonMisspellings(),
+		Root:      &LetterNode{Children: make(map[rune]*LetterNode)},
+		WordFreqs: f,
 	}
 	if err := wt.loadWords("resources/words.txt"); err != nil {
 		return nil, fmt.Errorf("failed to load words: %w", err)
 	}
 	return wt, nil
-}
-
-func initContractions() map[string]string {
-	return map[string]string{
-		"cant":     "can't",
-		"wont":     "won't",
-		"dont":     "don't",
-		"isnt":     "isn't",
-		"arent":    "aren't",
-		"wasnt":    "wasn't",
-		"werent":   "weren't",
-		"hasnt":    "hasn't",
-		"havent":   "haven't",
-		"hadnt":    "hadn't",
-		"wouldnt":  "wouldn't",
-		"couldnt":  "couldn't",
-		"shouldnt": "shouldn't",
-		"mustnt":   "mustn't",
-		"neednt":   "needn't",
-		"oughtnt":  "oughtn't",
-		"shant":    "shan't",
-		"darent":   "daren't",
-		"youre":    "you're",
-		"theyre":   "they're",
-		"were":     "we're",
-		"youve":    "you've",
-		"theyve":   "they've",
-		"weve":     "we've",
-		"ive":      "I've",
-		"youll":    "you'll",
-		"theyll":   "they'll",
-		"well":     "we'll",
-		"hell":     "he'll",
-		"shell":    "she'll",
-		"itll":     "it'll",
-		"thatll":   "that'll",
-		"wholl":    "who'll",
-		"whatll":   "what'll",
-		"wherll":   "where'll",
-		"whenll":   "when'll",
-		"whyll":    "why'll",
-		"howll":    "how'll",
-		"youd":     "you'd",
-		"theyd":    "they'd",
-		"wed":      "we'd",
-		"hed":      "he'd",
-		"shed":     "she'd",
-		"itd":      "it'd",
-		"thatd":    "that'd",
-		"whod":     "who'd",
-		"whatd":    "what'd",
-		"whered":   "where'd",
-		"whend":    "when'd",
-		"whyd":     "why'd",
-		"howd":     "how'd",
-		"im":       "I'm",
-		"lets":     "let's",
-		"thats":    "that's",
-		"whats":    "what's",
-		"wheres":   "where's",
-		"whens":    "when's",
-		"whys":     "why's",
-		"hows":     "how's",
-		"whos":     "who's",
-		"heres":    "here's",
-		"theres":   "there's",
-	}
-}
-
-func initCommonMisspellings() map[string]string {
-	return map[string]string{
-		// "i before e except after c" rule corrections
-		"recieve":   "receive",
-		"decieve":   "deceive",
-		"concieve":  "conceive",
-		"percieve":  "perceive",
-		"beleive":   "believe",
-		"acheive":   "achieve",
-		"releive":   "relieve",
-		"retreive":  "retrieve",
-		"breif":     "brief",
-		"cheif":     "chief",
-		"feild":     "field",
-		"yeild":     "yield",
-		"sheild":    "shield",
-		"weild":     "wield",
-		"peice":     "piece",
-		"neice":     "niece",
-		"freind":    "friend",
-		"wierd":     "weird",
-		"seize":     "seize", // exception: ei after s
-		
-		// Double letter corrections
-		"acommodate": "accommodate",
-		"acomodate":  "accommodate",
-		"adress":     "address",
-		"begining":   "beginning",
-		"comittee":   "committee",
-		"comited":    "committed",
-		"embarass":   "embarrass",
-		"embarasing": "embarrassing",
-		"goverment":  "government",
-		"harrass":    "harass",
-		"occured":    "occurred",
-		"occurence":  "occurrence",
-		"recomend":   "recommend",
-		"seperate":   "separate",
-		"sucessful":  "successful",
-		"sucess":     "success",
-		"tommorow":   "tomorrow",
-		"untill":     "until",
-		
-		// Common letter swaps
-		"definately": "definitely",
-		"definitly":  "definitely",
-		"diffrent":   "different",
-		"independant": "independent",
-		"neccessary": "necessary",
-		"occassion":  "occasion",
-		"priviledge": "privilege",
-		"rythm":      "rhythm",
-		"suprise":    "surprise",
-		"truely":     "truly",
-		"usefull":    "useful",
-		"greatful":   "grateful",
-		"foward":     "forward",
-		"tounge":     "tongue",
-		"alot":       "a lot",
-		"alright":    "all right",
-		
-		// Silent letter corrections
-		"desparate":  "desperate",
-		"maintainance": "maintenance",
-		"arguement":  "argument",
-		"judgement":  "judgment",
-		"acknowlege": "acknowledge",
-		"knowlege":   "knowledge",
-		"columb":     "column",
-		"autum":      "autumn",
-		"foriegn":    "foreign",
-		"souveneir":  "souvenir",
-	}
 }
 
 func normalizeApostrophe(word string) string {
@@ -276,7 +268,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 	originalWord := word
 	word = normalizeApostrophe(strings.ToLower(word))
 
-	if contraction, exists := wt.contractions[word]; exists {
+	if contraction, exists := contractions[word]; exists {
 		return []Correction{{
 			Word:       wt.preserveCase(originalWord, contraction),
 			Distance:   0,
@@ -288,7 +280,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 	// Check for pattern-based correction but don't return immediately - 
 	// let it be prioritized in the full candidate search
 	var patternCorrection string
-	if correction, exists := wt.commonMisspellings[word]; exists && wt.IsWord(correction) {
+	if correction, exists := commonMisspellings[word]; exists && wt.IsWord(correction) {
 		patternCorrection = correction
 	}
 
@@ -313,12 +305,12 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 			continue
 		}
 		confidence := wt.calculateConfidence(c.Distance, c.Frequency, maxDist)
-		
+
 		// Boost confidence for pattern-based corrections
 		if patternCorrection != "" && c.Word == patternCorrection {
 			confidence = 0.98
 		}
-		
+
 		corrections = append(corrections, Correction{
 			Word:       c.Word,
 			Distance:   c.Distance,
@@ -335,15 +327,15 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		if corrections[j].Confidence >= 0.98 && corrections[i].Confidence < 0.98 {
 			return false
 		}
-		
+
 		// Calculate composite scores that balance distance and frequency
 		// Score = distance - log10(frequency) * scaling_factor
 		// Lower scores rank higher
 		scalingFactor := 0.6
-		
+
 		scoreI := float64(corrections[i].Distance)
 		scoreJ := float64(corrections[j].Distance)
-		
+
 		// Apply frequency scaling if frequency > 0
 		if corrections[i].Frequency > 0 {
 			scoreI -= math.Log10(float64(corrections[i].Frequency)) * scalingFactor
@@ -351,12 +343,12 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		if corrections[j].Frequency > 0 {
 			scoreJ -= math.Log10(float64(corrections[j].Frequency)) * scalingFactor
 		}
-		
+
 		// Primary sort by composite score
-		if math.Abs(scoreI - scoreJ) > 0.001 { // Use small threshold for float comparison
+		if math.Abs(scoreI-scoreJ) > 0.001 { // Use small threshold for float comparison
 			return scoreI < scoreJ
 		}
-		
+
 		// Tie-breaker: keyboard distance
 		keyboardDistI := levenshtein.KeyboardAwareDistance(word, corrections[i].Word)
 		keyboardDistJ := levenshtein.KeyboardAwareDistance(word, corrections[j].Word)
@@ -500,6 +492,10 @@ func (wt *WordTrie) AutosuggestMultiple(prefix string, maxSuggestions int) []Sug
 }
 
 func (wt *WordTrie) loadWords(filename string) error {
+	for word, _ := range wt.WordFreqs.Frequencies {
+		wt.Insert(word)
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -509,6 +505,9 @@ func (wt *WordTrie) loadWords(filename string) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		word := strings.TrimSpace(scanner.Text())
+		if _, ok := wt.WordFreqs.Frequencies[word]; ok {
+			continue // Already loaded from frequencies
+		}
 		if word != "" {
 			wt.Insert(strings.ToLower(word))
 		}
