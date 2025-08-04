@@ -147,7 +147,7 @@ type Candidate struct {
 func (wt *WordTrie) FindCandidates(word string, maxDist, N int) []Candidate {
 	var candidates []Candidate
 	wordLen := len(word)
-	wt.CollectWords(func(candidate string) {
+	wt.collectWords(func(candidate string) {
 		candidateLen := len(candidate)
 		if int(math.Abs(float64(wordLen-candidateLen))) > maxDist {
 			return
@@ -198,7 +198,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 
 	originalWord := word
 	word = normalizeApostrophe(strings.ToLower(word))
-	
+
 	if contraction, exists := wt.contractions[word]; exists {
 		return []Correction{{
 			Word:       wt.preserveCase(originalWord, contraction),
@@ -207,7 +207,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 			Confidence: 1.0,
 		}}
 	}
-	
+
 	if wt.isPossessive(word) {
 		baseWord := strings.TrimSuffix(word, "'s")
 		if wt.IsWord(baseWord) {
@@ -238,12 +238,28 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 	}
 
 	sort.Slice(corrections, func(i, j int) bool {
-		if corrections[i].Distance != corrections[j].Distance {
-			return corrections[i].Distance < corrections[j].Distance
+		// Calculate composite scores that balance distance and frequency
+		// Score = distance - log10(frequency) * scaling_factor
+		// Lower scores rank higher
+		scalingFactor := 0.6
+		
+		scoreI := float64(corrections[i].Distance)
+		scoreJ := float64(corrections[j].Distance)
+		
+		// Apply frequency scaling if frequency > 0
+		if corrections[i].Frequency > 0 {
+			scoreI -= math.Log10(float64(corrections[i].Frequency)) * scalingFactor
 		}
-		if corrections[i].Frequency != corrections[j].Frequency {
-			return corrections[i].Frequency > corrections[j].Frequency
+		if corrections[j].Frequency > 0 {
+			scoreJ -= math.Log10(float64(corrections[j].Frequency)) * scalingFactor
 		}
+		
+		// Primary sort by composite score
+		if math.Abs(scoreI - scoreJ) > 0.001 { // Use small threshold for float comparison
+			return scoreI < scoreJ
+		}
+		
+		// Tie-breaker: keyboard distance
 		keyboardDistI := levenshtein.KeyboardAwareDistance(word, corrections[i].Word)
 		keyboardDistJ := levenshtein.KeyboardAwareDistance(word, corrections[j].Word)
 		return keyboardDistI < keyboardDistJ
@@ -264,7 +280,7 @@ func (wt *WordTrie) preserveCase(original, corrected string) string {
 	if len(original) == 0 || len(corrected) == 0 {
 		return corrected
 	}
-	
+
 	if unicode.IsUpper(rune(original[0])) {
 		if len(corrected) > 0 {
 			runes := []rune(corrected)
@@ -272,7 +288,7 @@ func (wt *WordTrie) preserveCase(original, corrected string) string {
 			return string(runes)
 		}
 	}
-	
+
 	return corrected
 }
 
@@ -339,6 +355,52 @@ func (wt *WordTrie) Autosuggest(prefix string) (*Suggestion, bool) {
 	return suggestions[0], suggestions[0].Frequency > 1
 }
 
+func (wt *WordTrie) AutosuggestMultiple(prefix string, maxSuggestions int) []Suggestion {
+	prefix = strings.ToLower(prefix)
+
+	node := wt.Root
+	for _, ch := range prefix {
+		n, ok := node.Children[ch]
+		if !ok {
+			return nil
+		}
+		node = n
+	}
+
+	var suggestions []Suggestion
+	var dfs func(n *LetterNode, current []rune)
+	dfs = func(n *LetterNode, current []rune) {
+		if n.IsWord {
+			word := string(current)
+			if word != prefix { // Skip the exact prefix match
+				frequency := wt.WordFreqs.Frequencies[word]
+				suggestions = append(suggestions, Suggestion{
+					Word:      word,
+					Frequency: frequency,
+				})
+			}
+		}
+		for ch, child := range n.Children {
+			dfs(child, append(current, ch))
+		}
+	}
+	dfs(node, []rune(prefix))
+
+	if len(suggestions) == 0 {
+		return nil
+	}
+
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Frequency > suggestions[j].Frequency
+	})
+
+	if len(suggestions) > maxSuggestions {
+		suggestions = suggestions[:maxSuggestions]
+	}
+
+	return suggestions
+}
+
 func (wt *WordTrie) loadWords(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -356,7 +418,7 @@ func (wt *WordTrie) loadWords(filename string) error {
 	return scanner.Err()
 }
 
-func (wt *WordTrie) CollectWords(fn func(string)) {
+func (wt *WordTrie) collectWords(fn func(string)) {
 	var dfs func(node *LetterNode, prefix []rune)
 	dfs = func(node *LetterNode, prefix []rune) {
 		if node.IsWord {
