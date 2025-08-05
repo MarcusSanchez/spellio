@@ -162,33 +162,44 @@ Goodbye!
 
 ## 🏗️ Architecture
 
-Spellio is built with three core components:
+Spellio follows idiomatic Go package structure with clear separation of concerns:
 
-### 1. Word Trie (`wordtrie/`)
-- Efficient prefix tree structure for word storage and lookup
-- O(m) time complexity for word checking (where m = word length)
-- Supports prefix-based autocompletion
+### Core Components
 
-### 2. Word Frequencies
-- Frequency-weighted suggestions based on real English usage
-- Loaded from `resources/english_words_freqs.txt`
-- Helps prioritize common words in corrections
+1. **Spell Checking Engine** (`internal/spellcheck/`)
+   - Word Trie data structure for efficient word storage and lookup
+   - O(m) time complexity for word checking (where m = word length)
+   - Frequency-weighted correction algorithms
+   - Pattern-based corrections for common misspellings
+   - Support for contractions and possessive forms
 
-### 3. Levenshtein Distance (`levenshtein/`)
-- Wagner-Fischer dynamic programming implementation
-- Standard edit distance (insertions, deletions, substitutions)
-- Keyboard-aware distance that understands adjacent key typos
-- Optimized with early termination and reduced memory usage
+2. **CLI Interface** (`internal/command/`)
+   - Command handlers for all CLI operations
+   - Interactive mode with command processing
+   - Sentence parsing and correction feedback
+
+3. **Edit Distance Algorithms** (`levenshtein/`)
+   - Public package implementing Wagner-Fischer algorithm
+   - Standard Levenshtein distance with optimizations
+   - Keyboard-aware distance for adjacent key typos
+   - Early termination and reduced memory usage
+
+### Word Data
+- **Dictionary**: `resources/english_words_freqs.txt` contains frequency-weighted word data
+- **Pattern Matching**: Built-in dictionaries for contractions and common misspellings
 
 ### Correction Algorithm
 
-Spellio uses a sophisticated scoring system that combines:
+Spellio uses a sophisticated multi-factor scoring system:
 
-1. **Edit Distance** - Standard Levenshtein distance
-2. **Word Frequency** - More common words rank higher
-3. **Keyboard Proximity** - Adjacent key mistakes are weighted lower
+1. **Edit Distance** - Standard Levenshtein distance for character-level changes
+2. **Word Frequency** - More common words receive higher priority
+3. **Keyboard Proximity** - Adjacent key mistakes are weighted as less severe
+4. **Pattern Recognition** - High-confidence corrections for known misspelling patterns
 
-The final score formula: `score = distance - log10(frequency) * 0.6`
+**Scoring Formula**: `score = distance - log10(frequency) * 0.6`
+
+Lower scores indicate better corrections, with pattern-based corrections receiving confidence boosts.
 
 ## 🎯 Examples
 
@@ -237,16 +248,32 @@ Suggestions:
 
 ```
 spellio/
-├── main.go                     # CLI interface and command handlers
-├── go.mod                      # Go module definition
-├── levenshtein/
-│   └── wagner_fischer.go       # Edit distance algorithms
-├── wordtrie/
-│   └── word_trie.go           # Trie data structure and spell checking logic
-└── resources/
-    ├── words.txt              # Dictionary of valid English words
-    └── english_words_freqs.txt # Word frequency data
+├── main.go                           # Application entry point
+├── go.mod                            # Go module definition
+├── internal/                         # Private packages
+│   ├── command/
+│   │   └── commands.go              # CLI command handlers and interactive mode
+│   └── spellcheck/                  # Core spell checking engine
+│       ├── trie.go                  # Trie data structure and basic operations
+│       ├── correction.go            # Spell correction algorithms
+│       ├── suggestions.go           # Autocompletion functionality
+│       ├── dictionaries.go          # Contractions and misspelling patterns
+│       └── loader.go                # Word data loading
+├── levenshtein/                     # Public edit distance package
+│   └── wagner_fischer.go           # Wagner-Fischer algorithm implementation
+└── resources/                       # Word data files
+    ├── words.txt                    # Dictionary of valid English words
+    └── english_words_freqs.txt      # Frequency-weighted word data
 ```
+
+### Package Organization
+
+- **`main.go`**: Minimal entry point that initializes the spell checker and CLI framework
+- **`internal/`**: Private packages following Go conventions for internal-only code
+  - **`command/`**: All CLI command logic, including interactive mode processing
+  - **`spellcheck/`**: Core spell checking engine with modular file organization
+- **`levenshtein/`**: Public package that could be reused by other projects
+- **`resources/`**: Static data files for word dictionaries and frequency data
 
 ## 🤝 Development
 

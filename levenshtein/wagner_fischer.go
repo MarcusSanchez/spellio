@@ -4,35 +4,37 @@
 // deletions, or substitutions) required to change one string into the other.
 package levenshtein
 
+import "slices"
+
 var keyboardLayout = map[rune][]rune{
-	'q': {'w', 'a', 's'},
-	'w': {'q', 'e', 'a', 's', 'd'},
-	'e': {'w', 'r', 's', 'd', 'f'},
-	'r': {'e', 't', 'd', 'f', 'g'},
-	't': {'r', 'y', 'f', 'g', 'h'},
-	'y': {'t', 'u', 'g', 'h', 'j'},
-	'u': {'y', 'i', 'h', 'j', 'k'},
-	'i': {'u', 'o', 'j', 'k', 'l'},
-	'o': {'i', 'p', 'k', 'l'},
-	'p': {'o', 'l'},
-	'a': {'q', 'w', 's', 'z'},
-	's': {'a', 'w', 'e', 'd', 'z', 'x'},
-	'd': {'s', 'e', 'r', 'f', 'x', 'c'},
-	'f': {'d', 'r', 't', 'g', 'c', 'v'},
-	'g': {'f', 't', 'y', 'h', 'v', 'b'},
-	'h': {'g', 'y', 'u', 'j', 'b', 'n'},
-	'j': {'h', 'u', 'i', 'k', 'n', 'm'},
-	'k': {'j', 'i', 'o', 'l', 'm'},
-	'l': {'k', 'o', 'p', 'm', '\''},
+	'q':  {'w', 'a', 's'},
+	'w':  {'q', 'e', 'a', 's', 'd'},
+	'e':  {'w', 'r', 's', 'd', 'f'},
+	'r':  {'e', 't', 'd', 'f', 'g'},
+	't':  {'r', 'y', 'f', 'g', 'h'},
+	'y':  {'t', 'u', 'g', 'h', 'j'},
+	'u':  {'y', 'i', 'h', 'j', 'k'},
+	'i':  {'u', 'o', 'j', 'k', 'l'},
+	'o':  {'i', 'p', 'k', 'l'},
+	'p':  {'o', 'l'},
+	'a':  {'q', 'w', 's', 'z'},
+	's':  {'a', 'w', 'e', 'd', 'z', 'x'},
+	'd':  {'s', 'e', 'r', 'f', 'x', 'c'},
+	'f':  {'d', 'r', 't', 'g', 'c', 'v'},
+	'g':  {'f', 't', 'y', 'h', 'v', 'b'},
+	'h':  {'g', 'y', 'u', 'j', 'b', 'n'},
+	'j':  {'h', 'u', 'i', 'k', 'n', 'm'},
+	'k':  {'j', 'i', 'o', 'l', 'm'},
+	'l':  {'k', 'o', 'p', 'm', '\''},
 	'\'': {'l', ';'},
-	';': {'l', '\'', 'p'},
-	'z': {'a', 's', 'x'},
-	'x': {'z', 's', 'd', 'c'},
-	'c': {'x', 'd', 'f', 'v'},
-	'v': {'c', 'f', 'g', 'b'},
-	'b': {'v', 'g', 'h', 'n'},
-	'n': {'b', 'h', 'j', 'm'},
-	'm': {'n', 'j', 'k', 'l'},
+	';':  {'l', '\'', 'p'},
+	'z':  {'a', 's', 'x'},
+	'x':  {'z', 's', 'd', 'c'},
+	'c':  {'x', 'd', 'f', 'v'},
+	'v':  {'c', 'f', 'g', 'b'},
+	'b':  {'v', 'g', 'h', 'n'},
+	'n':  {'b', 'h', 'j', 'm'},
+	'm':  {'n', 'j', 'k', 'l'},
 }
 
 func keyboardDistance(a, b rune) int {
@@ -41,10 +43,8 @@ func keyboardDistance(a, b rune) int {
 	}
 
 	if adjacent, exists := keyboardLayout[a]; exists {
-		for _, key := range adjacent {
-			if key == b {
-				return 9
-			}
+		if slices.Contains(adjacent, b) {
+			return 9
 		}
 	}
 
