@@ -73,9 +73,9 @@ Check if a word is spelled correctly:
 $ spellio check hello
 'hello' is spelled correctly.
 
-$ spellio check helo
-'helo' is incorrect.
-Did you mean: help?
+$ spellio check mispelled
+'mispelled' is incorrect.
+Did you mean: misspelled?
 ```
 
 ### Get Spelling Corrections
@@ -88,16 +88,16 @@ Suggestions:
 - receive
 - relieve
 - believe
+- recieved
 - recipe
-- retrieve
 
 $ spellio correct definately
 Suggestions:
 - definitely
+- definatly
 - delicately
-- deviately
-- derivately
-- definably
+- definitly
+- definitly
 ```
 
 ### Autocompletion
@@ -120,7 +120,7 @@ Check and correct entire sentences:
 
 ```bash
 $ spellio sentence "I recieve your mesage and will respnd soon"
-Found 3 corrections in your sentence:
+Found 3 words in need of correction in your sentence:
 I (receive) your (message) and will (respond) soon
 
 $ spellio sentence "This sentence is correct"
@@ -134,28 +134,29 @@ Start an interactive spell-checking session:
 ```bash
 $ spellio interactive
 Welcome to spellio-interactive!
-Type 'help' for a list of commands.
+Type ':help' for a list of commands.
 
-Input: helo
-'helo' is incorrect. Did you mean: help, hello, hero?
+Spellio > hello
+'hello' is spelled correctly!
 
-Input: complete prog
+Spellio > :complete prog
 Suggestions: program, programs, programme, programming, progress
 
-Input: help
+Spellio > :help
 Available commands:
-  check <word>      Check if a word is spelled correctly (alias: ch)
-  complete <prefix> Get autocomplete suggestions for a prefix (alias: c, comp)
-  correct <word>    Get correct spelling suggestions for a word (alias: cor)
-  sentence <text>   Check and correct all words in a sentence (alias: sent)
-  help              Show this help message (alias: h)
-  quit/exit         Exit the program (alias: q)
+  :check <word>      Check if a word is spelled correctly (alias: :ch)
+  :complete <prefix> Get autocomplete suggestions for a prefix (alias: :c, :comp)
+  :correct <word>    Get correct spelling suggestions for a word (alias: :cor)
+  :sentence <text>   Check and correct all words in a sentence (alias: :sent)
+  :clear             Clear the screen (alias: :cls)
+  :help              Show this help message (alias: :h)
+  :quit/:exit        Exit the program (alias: :q)
 
 Default modes:
   - Enter a single word to check spelling and get corrections
   - Enter multiple words to check and correct the entire sentence
 
-Input: quit
+Spellio > :quit
 Goodbye!
 ```
 
@@ -168,7 +169,7 @@ Spellio is built with three core components:
 - O(m) time complexity for word checking (where m = word length)
 - Supports prefix-based autocompletion
 
-### 2. Word Frequencies (`wordfreqs/`)
+### 2. Word Frequencies
 - Frequency-weighted suggestions based on real English usage
 - Loaded from `resources/english_words_freqs.txt`
 - Helps prioritize common words in corrections
@@ -226,7 +227,10 @@ Suggestions:
 $ spellio correct heloo  # 'o' and 'l' are adjacent on keyboard
 Suggestions:
 - hello
-- heel
+- help
+- below
+- held
+- helps
 ```
 
 ## 📁 Project Structure
@@ -237,8 +241,6 @@ spellio/
 ├── go.mod                      # Go module definition
 ├── levenshtein/
 │   └── wagner_fischer.go       # Edit distance algorithms
-├── wordfreqs/
-│   └── word_frequencies.go     # Word frequency management
 ├── wordtrie/
 │   └── word_trie.go           # Trie data structure and spell checking logic
 └── resources/

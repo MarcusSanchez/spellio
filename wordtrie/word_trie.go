@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 	"spellio/levenshtein"
-	"spellio/wordfreqs"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -151,21 +151,20 @@ var commonMisspellings = map[string]string{
 }
 
 type LetterNode struct {
-	Children map[rune]*LetterNode
-	IsWord   bool
+	Children  map[rune]*LetterNode
+	IsWord    bool
+	Frequency int
 }
 
 type WordTrie struct {
-	Root      *LetterNode
-	WordFreqs *wordfreqs.WordFrequencies
+	Root *LetterNode
 }
 
-func New(f *wordfreqs.WordFrequencies) (*WordTrie, error) {
+func New() (*WordTrie, error) {
 	wt := &WordTrie{
-		Root:      &LetterNode{Children: make(map[rune]*LetterNode)},
-		WordFreqs: f,
+		Root: &LetterNode{Children: make(map[rune]*LetterNode)},
 	}
-	if err := wt.loadWords("resources/words.txt"); err != nil {
+	if err := wt.loadWords("resources/english_words_freqs.txt"); err != nil {
 		return nil, fmt.Errorf("failed to load words: %w", err)
 	}
 	return wt, nil
@@ -183,7 +182,7 @@ func normalizeApostrophe(word string) string {
 	return string(result)
 }
 
-func (wt *WordTrie) Insert(word string) {
+func (wt *WordTrie) Insert(word string, frequency int) {
 	word = strings.ToLower(word)
 	n := wt.Root
 	for _, ch := range word {
@@ -193,10 +192,18 @@ func (wt *WordTrie) Insert(word string) {
 		n = n.Children[ch]
 	}
 	n.IsWord = true
+	n.Frequency = frequency
 }
 
 func (wt *WordTrie) IsWord(word string) bool {
 	word = normalizeApostrophe(strings.ToLower(word))
+	if _, ok := contractions[word]; ok {
+		return false
+	}
+	if _, ok := commonMisspellings[word]; ok {
+		return false
+	}
+
 	n := wt.Root
 	for _, ch := range word {
 		if _, ok := n.Children[ch]; !ok {
@@ -216,14 +223,13 @@ type Candidate struct {
 func (wt *WordTrie) FindCandidates(word string, maxDist, N int) []Candidate {
 	var candidates []Candidate
 	wordLen := len(word)
-	wt.collectWords(func(candidate string) {
+	wt.collectWords(func(candidate string, frequency int) {
 		candidateLen := len(candidate)
 		if int(math.Abs(float64(wordLen-candidateLen))) > maxDist {
 			return
 		}
 		dist := levenshtein.DistanceWithThreshold(word, candidate, maxDist)
 		if dist <= maxDist {
-			frequency := wt.WordFreqs.Frequencies[candidate]
 			candidates = append(candidates, Candidate{
 				Word:      candidate,
 				Distance:  dist,
@@ -277,7 +283,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		}}
 	}
 
-	// Check for pattern-based correction but don't return immediately - 
+	// Check for pattern-based correction but don't return immediately -
 	// let it be prioritized in the full candidate search
 	var patternCorrection string
 	if correction, exists := commonMisspellings[word]; exists && wt.IsWord(correction) {
@@ -291,7 +297,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 			return []Correction{{
 				Word:       correctedPossessive,
 				Distance:   0,
-				Frequency:  wt.WordFreqs.Frequencies[baseWord],
+				Frequency:  wt.GetWordFrequency(baseWord),
 				Confidence: 0.95,
 			}}
 		}
@@ -421,10 +427,9 @@ func (wt *WordTrie) Autosuggest(prefix string) (*Suggestion, bool) {
 		if n.IsWord {
 			word := string(current)
 			if word != prefix { // Skip the exact prefix match
-				frequency := wt.WordFreqs.Frequencies[word]
 				suggestions = append(suggestions, &Suggestion{
 					Word:      word,
-					Frequency: frequency,
+					Frequency: wt.GetWordFrequency(word),
 				})
 			}
 		}
@@ -463,10 +468,9 @@ func (wt *WordTrie) AutosuggestMultiple(prefix string, maxSuggestions int) []Sug
 		if n.IsWord {
 			word := string(current)
 			if word != prefix { // Skip the exact prefix match
-				frequency := wt.WordFreqs.Frequencies[word]
 				suggestions = append(suggestions, Suggestion{
 					Word:      word,
-					Frequency: frequency,
+					Frequency: wt.GetWordFrequency(word),
 				})
 			}
 		}
@@ -491,11 +495,22 @@ func (wt *WordTrie) AutosuggestMultiple(prefix string, maxSuggestions int) []Sug
 	return suggestions
 }
 
-func (wt *WordTrie) loadWords(filename string) error {
-	for word, _ := range wt.WordFreqs.Frequencies {
-		wt.Insert(word)
+func (wt *WordTrie) GetWordFrequency(word string) int {
+	word = strings.ToLower(word)
+	n := wt.Root
+	for _, ch := range word {
+		if _, ok := n.Children[ch]; !ok {
+			return 0 // Word not found
+		}
+		n = n.Children[ch]
 	}
+	if n.IsWord {
+		return n.Frequency
+	}
+	return 0 // Not a valid word
+}
 
+func (wt *WordTrie) loadWords(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -504,22 +519,22 @@ func (wt *WordTrie) loadWords(filename string) error {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		word := strings.TrimSpace(scanner.Text())
-		if _, ok := wt.WordFreqs.Frequencies[word]; ok {
-			continue // Already loaded from frequencies
-		}
+		pair := strings.Split(strings.TrimSpace(scanner.Text()), ",")
+		word := pair[0]
+		frequency, _ := strconv.Atoi(pair[1])
+
 		if word != "" {
-			wt.Insert(strings.ToLower(word))
+			wt.Insert(strings.ToLower(word), frequency)
 		}
 	}
 	return scanner.Err()
 }
 
-func (wt *WordTrie) collectWords(fn func(string)) {
+func (wt *WordTrie) collectWords(fn func(string, int)) {
 	var dfs func(node *LetterNode, prefix []rune)
 	dfs = func(node *LetterNode, prefix []rune) {
 		if node.IsWord {
-			fn(string(prefix))
+			fn(string(prefix), node.Frequency)
 		}
 		for ch, child := range node.Children {
 			prefix = append(prefix, ch)

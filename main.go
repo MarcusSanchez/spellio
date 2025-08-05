@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"spellio/wordfreqs"
 	"spellio/wordtrie"
 	"strings"
 
@@ -16,12 +15,7 @@ import (
 const version = "1.0.0"
 
 func main() {
-	wf, err := wordfreqs.New()
-	if err != nil {
-		log.Fatalf("failed to load english frequency map: %v", err)
-	}
-
-	wt, err := wordtrie.New(wf)
+	wt, err := wordtrie.New()
 	if err != nil {
 		log.Fatalf("failed to load word-trie: %v", err)
 	}
@@ -31,7 +25,12 @@ func main() {
 		Usage:   "A spell checker and text correction tool",
 		Version: version,
 		Action: func(c *cli.Context) error {
-			// Default action when no subcommand is provided
+			// If arguments were provided but no valid subcommand matched, show help
+			if c.NArg() > 0 {
+				_ = cli.ShowAppHelp(c)
+				return fmt.Errorf("unknown command: %s", c.Args().Get(0))
+			}
+			// Default action when no arguments are provided
 			return interactiveCommand(wt, c)
 		},
 		Commands: []*cli.Command{
@@ -114,7 +113,7 @@ func suggestCommand(wt *wordtrie.WordTrie, c *cli.Context) error {
 
 	prefix := c.Args().Get(0)
 	suggestions := wt.AutosuggestMultiple(prefix, 5)
-	
+
 	if len(suggestions) == 0 {
 		fmt.Printf("No suggestions found for prefix '%s'.\n", prefix)
 		return nil
@@ -154,56 +153,51 @@ func sentenceCommand(wt *wordtrie.WordTrie, c *cli.Context) error {
 
 	sentence := strings.Join(c.Args().Slice(), " ")
 	correctedSentence, correctionCount := processSentenceWithFeedback(wt, sentence)
-	
+
 	if correctionCount == 0 {
 		fmt.Println("Your sentence is correct!")
 	} else {
 		if correctionCount == 1 {
-			fmt.Println("Found 1 correction in your sentence:")
+			fmt.Println("Found 1 word in need of correction in your sentence:")
 		} else {
-			fmt.Printf("Found %d corrections in your sentence:\n", correctionCount)
+			fmt.Printf("Found %d words in need of correction in your sentence:\n", correctionCount)
 		}
 		fmt.Println(correctedSentence)
 	}
 	return nil
 }
 
-func processSentence(wt *wordtrie.WordTrie, sentence string) string {
-	result, _ := processSentenceWithFeedback(wt, sentence)
-	return result
-}
-
 func processSentenceWithFeedback(wt *wordtrie.WordTrie, sentence string) (string, int) {
 	wordRegex := regexp.MustCompile(`\b[a-zA-Z]+(?:'[a-zA-Z]+)?\b`)
 	correctionCount := 0
-	
+
 	result := wordRegex.ReplaceAllStringFunc(sentence, func(word string) string {
 		if wt.IsWord(word) {
 			return word
 		}
-		
+
 		correction, found := wt.Autocorrect(word)
 		if found {
 			correctionCount++
 			return fmt.Sprintf("(%s)", correction.Word)
 		}
-		
+
 		correctionCount++
-		return fmt.Sprintf("(%s)", word)
+		return fmt.Sprintf("[no suggestions](%s)", word)
 	})
-	
+
 	return result, correctionCount
 }
 
 func interactiveCommand(wt *wordtrie.WordTrie, c *cli.Context) error {
 	fmt.Println("Welcome to spellio-interactive!")
-	fmt.Println("Type 'help' for a list of commands.")
+	fmt.Println("Type ':help' for a list of commands.")
 	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
-		fmt.Print("Input: ")
+		fmt.Print("Spellio > ")
 		if !scanner.Scan() {
 			break
 		}
@@ -232,83 +226,94 @@ func processInteractiveInput(wt *wordtrie.WordTrie, input string) error {
 		return nil
 	}
 
-	command := strings.ToLower(parts[0])
+	// Check if this is a command (starts with ':')
+	if strings.HasPrefix(parts[0], ":") {
+		command := strings.ToLower(strings.TrimPrefix(parts[0], ":"))
 
-	switch command {
-	case "quit", "exit", "q":
-		return fmt.Errorf("quit")
+		switch command {
+		case "quit", "exit", "q":
+			return fmt.Errorf("quit")
 
-	case "help", "h":
-		showInteractiveHelp()
-		return nil
+		case "help", "h":
+			showInteractiveHelp()
+			return nil
 
-	case "check", "ch":
-		if len(parts) != 2 {
-			return fmt.Errorf("usage: check <word>")
-		}
-		return processCheck(wt, parts[1])
+		case "clear", "cls":
+			fmt.Print("\033[2J\033[H")
+			return nil
 
-	case "complete", "comp", "c":
-		if len(parts) != 2 {
-			return fmt.Errorf("usage: complete <prefix>")
-		}
-		return processSuggest(wt, parts[1])
-
-	case "correct", "cor":
-		if len(parts) != 2 {
-			return fmt.Errorf("usage: correct <word>")
-		}
-		return processCorrect(wt, parts[1])
-		
-	case "sentence", "sent":
-		if len(parts) < 2 {
-			return fmt.Errorf("usage: sentence <sentence>")
-		}
-		sentence := strings.Join(parts[1:], " ")
-		correctedSentence, correctionCount := processSentenceWithFeedback(wt, sentence)
-		
-		if correctionCount == 0 {
-			fmt.Println("Your sentence is correct!")
-		} else {
-			if correctionCount == 1 {
-				fmt.Println("Found 1 correction in your sentence:")
-			} else {
-				fmt.Printf("Found %d corrections in your sentence:\n", correctionCount)
+		case "check", "ch":
+			if len(parts) != 2 {
+				return fmt.Errorf("usage: :check <word>")
 			}
-			fmt.Println(correctedSentence)
-		}
-		return nil
+			return processCheck(wt, parts[1])
 
-	default:
-		if len(parts) == 1 {
-			return processDefaultMode(wt, parts[0])
-		}
-		// Multi-word input - treat as sentence
-		sentence := strings.Join(parts, " ")
-		correctedSentence, correctionCount := processSentenceWithFeedback(wt, sentence)
-		
-		if correctionCount == 0 {
-			fmt.Println("Your sentence is correct!")
-		} else {
-			if correctionCount == 1 {
-				fmt.Println("Found 1 correction in your sentence:")
-			} else {
-				fmt.Printf("Found %d corrections in your sentence:\n", correctionCount)
+		case "complete", "comp", "c":
+			if len(parts) != 2 {
+				return fmt.Errorf("usage: :complete <prefix>")
 			}
-			fmt.Println(correctedSentence)
+			return processSuggest(wt, parts[1])
+
+		case "correct", "cor":
+			if len(parts) != 2 {
+				return fmt.Errorf("usage: :correct <word>")
+			}
+			return processCorrect(wt, parts[1])
+
+		case "sentence", "sent":
+			if len(parts) < 2 {
+				return fmt.Errorf("usage: :sentence <sentence>")
+			}
+			sentence := strings.Join(parts[1:], " ")
+			correctedSentence, correctionCount := processSentenceWithFeedback(wt, sentence)
+
+			if correctionCount == 0 {
+				fmt.Println("Your sentence is correct!")
+			} else {
+				if correctionCount == 1 {
+					fmt.Println("Found 1 correction in your sentence:")
+				} else {
+					fmt.Printf("Found %d corrections in your sentence:\n", correctionCount)
+				}
+				fmt.Println(correctedSentence)
+			}
+			return nil
+
+		default:
+			return fmt.Errorf("unknown command: %s. Type ':help' for available commands", command)
 		}
-		return nil
 	}
+
+	// Not a command - treat as regular text input
+	if len(parts) == 1 {
+		return processDefaultMode(wt, parts[0])
+	}
+	// Multi-word input - treat as sentence
+	sentence := strings.Join(parts, " ")
+	correctedSentence, correctionCount := processSentenceWithFeedback(wt, sentence)
+
+	if correctionCount == 0 {
+		fmt.Println("Your sentence is correct!")
+	} else {
+		if correctionCount == 1 {
+			fmt.Println("Found 1 correction in your sentence:")
+		} else {
+			fmt.Printf("Found %d corrections in your sentence:\n", correctionCount)
+		}
+		fmt.Println(correctedSentence)
+	}
+	return nil
 }
 
 func showInteractiveHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  check <word>      Check if a word is spelled correctly (alias: ch)")
-	fmt.Println("  complete <prefix> Get autocomplete suggestions for a prefix (alias: c, comp)")
-	fmt.Println("  correct <word>    Get correct spelling suggestions for a word (alias: cor)")
-	fmt.Println("  sentence <text>   Check and correct all words in a sentence (alias: sent)")
-	fmt.Println("  help              Show this help message (alias: h)")
-	fmt.Println("  quit/exit         Exit the program (alias: q)")
+	fmt.Println("  :check <word>      Check if a word is spelled correctly (alias: :ch)")
+	fmt.Println("  :complete <prefix> Get autocomplete suggestions for a prefix (alias: :c, :comp)")
+	fmt.Println("  :correct <word>    Get correct spelling suggestions for a word (alias: :cor)")
+	fmt.Println("  :sentence <text>   Check and correct all words in a sentence (alias: :sent)")
+	fmt.Println("  :clear             Clear the screen (alias: :cls)")
+	fmt.Println("  :help              Show this help message (alias: :h)")
+	fmt.Println("  :quit/:exit        Exit the program (alias: :q)")
 	fmt.Println()
 	fmt.Println("Default modes:")
 	fmt.Println("  - Enter a single word to check spelling and get corrections")
