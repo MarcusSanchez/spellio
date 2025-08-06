@@ -146,4 +146,5 @@ var commonMisspellings = map[string]string{
 	"autum":        "autumn",
 	"foriegn":      "foreign",
 	"souveneir":    "souvenir",
+	"heroe":        "hero",
 }

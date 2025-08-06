@@ -51,9 +51,9 @@ func (wt *WordTrie) FindCandidates(word string, maxDist, N int) []Candidate {
 }
 
 func (wt *WordTrie) Autocorrect(word string, md ...int) (Correction, bool) {
-	suggestions := wt.AutocorrectMultiple(word, 1, md...)
-	if len(suggestions) > 0 {
-		return suggestions[0], true
+	corrections := wt.AutocorrectMultiple(word, 1, md...)
+	if len(corrections) > 0 {
+		return corrections[0], true
 	}
 	return Correction{}, false
 }
@@ -130,7 +130,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		// Calculate composite scores that balance distance and frequency
 		// Score = distance - log10(frequency) * scaling_factor
 		// Lower scores rank higher
-		scalingFactor := 0.6
+		scalingFactor := 0.25
 
 		scoreI := float64(corrections[i].Distance)
 		scoreJ := float64(corrections[j].Distance)

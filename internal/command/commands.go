@@ -175,8 +175,8 @@ func processInteractiveInput(wt *spellcheck.WordTrie, input string) error {
 	}
 
 	// Check if this is a command (starts with \":\")
-	if strings.HasPrefix(parts[0], ":") {
-		command := strings.ToLower(strings.TrimPrefix(parts[0], ":"))
+	if after, ok := strings.CutPrefix(parts[0], ":"); ok {
+		command := strings.ToLower(after)
 
 		switch command {
 		case "quit", "exit", "q":
