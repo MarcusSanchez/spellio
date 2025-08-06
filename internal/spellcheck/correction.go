@@ -130,7 +130,7 @@ func (wt *WordTrie) AutocorrectMultiple(word string, maxSuggestions int, md ...i
 		// Calculate composite scores that balance distance and frequency
 		// Score = distance - log10(frequency) * scaling_factor
 		// Lower scores rank higher
-		scalingFactor := 0.6
+		scalingFactor := 0.25
 
 		scoreI := float64(corrections[i].Distance)
 		scoreJ := float64(corrections[j].Distance)
